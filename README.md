@@ -1,6 +1,3 @@
-# ansible-net-setup
-
-
 # Ansible NAS and SMB Setup
 
 This repository contains Ansible playbooks and configuration files for automating the setup of a network-attached storage (NAS) system with SMB shares and ensuring devices in the network can discover and mount these shares easily. It’s a companion to the YouTube video on setting up and using Ansible for networked storage.
