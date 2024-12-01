@@ -1,0 +1,39 @@
+---
+# This playbook sets up SMB on a NAS for file sharing
+
+- name: Setup SMB on NAS
+  hosts: NAS               # Target group defined in the inventory file
+  become: true             # Use privilege escalation (sudo)
+  tasks:
+    # Install Samba package
+    - name: Install Samba
+      apt:
+        name: samba
+        state: present
+        update_cache: yes
+
+    # Create a shared directory for SMB
+    - name: Create shared directory
+      file:
+        path: /srv/smb_shared
+        state: directory
+        mode: '0777'
+
+    # Add configuration for the Samba share
+    - name: Add SMB configuration
+      lineinfile:
+        path: /etc/samba/smb.conf
+        create: yes         # Create the file if it doesn't exist
+        block: |
+          [Shared]
+          path = /srv/smb_shared
+          browsable = yes
+          read only = no
+          guest ok = yes
+
+    # Restart the Samba service to apply changes
+    - name: Restart Samba service
+      service:
+        name: smbd
+        state: restarted
+
