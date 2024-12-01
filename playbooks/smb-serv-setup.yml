@@ -6,9 +6,11 @@
   become: true             # Use privilege escalation (sudo)
   tasks:
     # Install Samba package
-    - name: Install Samba
+    - name: Install Samba + smbclient
       apt:
-        name: samba
+        name: 
+          - samba
+          - smbclient
         state: present
         update_cache: yes
 
@@ -21,7 +23,7 @@
 
     # Add configuration for the Samba share
     - name: Add SMB configuration
-      lineinfile:
+      blockinfile:
         path: /etc/samba/smb.conf
         create: yes         # Create the file if it doesn't exist
         block: |
