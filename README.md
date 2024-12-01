@@ -1,3 +1,7 @@
+Here’s the updated README with the details about the scripts and their specific roles:
+
+---
+
 # Ansible NAS and SMB Setup
 
 This repository contains Ansible playbooks and configuration files for automating the setup of a network-attached storage (NAS) system with SMB shares and ensuring devices in the network can discover and mount these shares easily. It’s a companion to the YouTube video on setting up and using Ansible for networked storage.
@@ -26,77 +30,102 @@ The project aims to:
 - **Offsite**:
   - **dave-nas**: Offsite NAS to be configured identically to NASty.
 
-### **What is SMB and Why Use It?**
+---
+
+## **What is SMB and Why Use It?**
 
 **SMB (Server Message Block)** is a network file sharing protocol that allows devices to access files, printers, and other shared resources on a network. It is widely supported across multiple operating systems, including Windows, macOS, and Linux.
 
 I chose SMB over NFS because it provides better cross-platform compatibility, making it easier to set up and use in a network with diverse operating systems like mine, which includes Windows, macOS, and Linux. While NFS is often preferred in Linux-only environments, SMB simplifies integration and ensures seamless access for all devices in the network.
-
 
 ---
 
 ## **How the Ansible Playbook Works**
 
 The playbook automates the following tasks on the NAS:
-1. **Install Samba**: Ensures the `samba` package is installed.
+1. **Install Samba and smbclient**: Ensures the necessary packages for the SMB server and testing tools are installed.
 2. **Create Shared Directory**: Sets up the shared folder on the NAS (`/srv/smb_shared`).
 3. **Configure SMB Shares**: Updates `/etc/samba/smb.conf` to add the shared folder with the necessary settings:
    - The share is browsable and writable.
    - Guest access is enabled for simplicity.
 4. **Restart Samba Service**: Ensures the `smbd` service restarts to apply the new configuration.
 
-### **Playbook Structure**
-
-Example Playbook (`playbooks/nas_smb_setup.yml`):
-```yaml
 ---
-- name: Setup SMB on NAS
-  hosts: nas
-  become: true
-  tasks:
-    - name: Install Samba
-      apt:
-        name: samba
-        state: present
-        update_cache: yes
 
-    - name: Create shared directory
-      file:
-        path: /srv/smb_shared
-        state: directory
-        mode: '0777'
+## **Scripts Overview**
 
-    - name: Configure Samba share
-      blockinfile:
-        path: /etc/samba/smb.conf
-        block: |
-          [Shared]
-          path = /srv/smb_shared
-          browsable = yes
-          read only = no
-          guest ok = yes
+### **1. `setup.sh`**
+This script installs Ansible on the control node (NASty) and verifies the installation:
+- Installs Ansible via `apt`.
+- Confirms the installation by running `ansible --version`.
 
-    - name: Restart Samba service
-      service:
-        name: smbd
-        state: restarted
+Usage:
+```bash
+./setup.sh
 ```
 
 ---
 
-## **Ansible Inventory File**
+### **2. `run.sh`**
+This script performs the following actions:
+1. Pings the hosts in the `NAS` group in the inventory file to verify connectivity.
+2. Runs the playbook (`playbooks/smb-serv-setup.yml`) to configure SMB on all devices in the `NAS` group.
 
-The inventory file lists all devices that Ansible manages. For now, it defines the NAS (NASty and any others) and specifies how to connect to them.
-
-Example Inventory (`inventory/hosts`):
-```ini
-[nas]
-dave-nas ansible_host=xxx ansible_user=user
-localhost ansible_connection=local
+Usage:
+```bash
+./run.sh
 ```
 
-- **nas1**: A remote NAS accessible via SSH.
-- **localhost**: The control node (NASty) is also configured as a managed node using `ansible_connection=local`.
+---
+
+### **3. `tests/smb_test.sh`**
+Located in the `tests/` directory, this script verifies that SMB has been configured correctly after running the playbook. It checks:
+1. Presence of the correct SMB configuration in `/etc/samba/smb.conf`.
+2. Existence of the shared directory (`/srv/smb_shared`) with the correct permissions.
+3. Status of the Samba service (`smbd`).
+4. Availability of the SMB share on the NAS.
+
+Usage:
+```bash
+./tests/smb_test.sh
+```
+
+---
+
+## **Setup Instructions**
+
+1. Clone this repository:
+   ```bash
+   git clone https://github.com/username/ansible-net-setup.git
+   cd ansible-net-setup
+   ```
+
+2. Run the setup script to install Ansible:
+   ```bash
+   ./setup.sh
+   ```
+
+3. Configure the inventory file (`inventory/hosts.ini`) with your network details:
+   ```ini
+   [nas]
+   localhost ansible_connection=local
+   ```
+
+4. Test connectivity to the nodes:
+   ```bash
+   ./run.sh
+   ```
+
+---
+
+## **Testing SMB Setup**
+
+After running the playbook, use the test script to ensure everything is configured correctly:
+```bash
+./tests/smb_test.sh
+```
+
+If any checks fail, the script will provide details about what went wrong and how to fix it.
 
 ---
 
