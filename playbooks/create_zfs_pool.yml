@@ -1,0 +1,77 @@
+---
+# Playbook to Create ZFS Pool for NAS
+# This playbook automates the creation of a ZFS pool named "tank" using RAIDZ1.
+# It performs validation to ensure the pool does not already exist and wipes selected disks before creating the pool.
+# NOTE: This playbook includes destructive operations, such as wiping partitions on selected disks.
+
+- name: Create ZFS Pool for NAS
+  hosts: nas
+  become: true
+  vars_files:
+    - ../vars/disks.yml  # Load the list of disks from an external YAML file created during the setup step.
+
+  tasks:
+    # Step 1: Check if ZFS pool "tank" already exists
+    - name: Check if ZFS pool "tank" exists
+      command: zpool list tank
+      register: zpool_check  # Registers the result of the zpool list command into the variable `zpool_check`.
+      ignore_errors: true    # Allows the task to continue even if the pool does not exist (non-zero return code).
+
+      # Description:
+      # `zpool list tank` checks if the pool named "tank" already exists.
+      # - If the pool exists, the command succeeds, and `zpool_check.rc` (return code) will be 0.
+      # - If the pool does not exist, the command fails, and `zpool_check.rc` will be non-zero.
+      # The `register` directive captures the output and return code, which are used in later steps.
+
+    # Step 2: Fail if the pool already exists to avoid accidental re-creation
+    - name: Fail if ZFS pool "tank" already exists
+      fail:
+        msg: "ZFS pool 'tank' already exists. Skipping destructive operations."
+      when: zpool_check.rc == 0  # Only fails if the pool exists (return code 0).
+
+      # Description:
+      # This task ensures no destructive actions are performed if the pool already exists.
+      # The `fail` module halts execution with a clear message to the user.
+
+    # Step 3: Wipe existing partitions on selected disks
+    - name: Wipe existing partitions on selected disks
+      loop: "{{ zfs_disks }}"  # Loops over the list of disks provided in `zfs_disks` from the vars file.
+      loop_control:
+        label: "{{ item }}"  # Displays the disk currently being processed in task output.
+      tasks:
+        - name: Wipe disk with wipefs
+          command: wipefs -a {{ item }}
+
+          # Description:
+          # `wipefs -a` removes all existing filesystem signatures from the disk.
+          # WARNING: This operation is destructive and will permanently remove filesystem metadata.
+
+        - name: Zap partitions with sgdisk
+          command: sgdisk --zap-all {{ item }}
+
+          # Description:
+          # `sgdisk --zap-all` removes all partition table data from the disk.
+          # WARNING: This operation is also destructive and completely clears the disk's partition table.
+
+      when: zpool_check.rc != 0  # Ensures this task only runs if the pool does not already exist.
+
+    # Step 4: Create the ZFS pool
+    - name: Create ZFS RAIDZ1 pool "tank"
+      shell: zpool create -f tank raidz1 {{ zfs_disks | join(' ') }}
+      when: zpool_check.rc != 0  # Only runs if the pool does not already exist.
+
+      # Description:
+      # `zpool create -f tank raidz1 <disks>` creates a ZFS pool named "tank" in RAIDZ1 configuration using the specified disks.
+      # - `-f`: Forces the creation of the pool, overwriting existing data on the disks.
+      # - `raidz1`: Configures the pool for single-parity redundancy (1 disk can fail without data loss).
+      # WARNING: This operation is destructive and will erase all data on the selected disks.
+
+    # Step 5: Set the mountpoint for the pool
+    - name: Set mountpoint for "tank" to /srv/fileserver
+      command: zfs set mountpoint=/srv/fileserver tank
+      when: zpool_check.rc != 0  # Only runs if the pool was newly created.
+
+      # Description:
+      # `zfs set mountpoint=/srv/fileserver tank` configures the ZFS pool to mount at `/srv/fileserver`.
+      # This ensures that the pool's data will be accessible from this directory on the NAS.
+

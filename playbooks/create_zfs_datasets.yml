@@ -1,0 +1,66 @@
+---
+# Playbook to Create ZFS Datasets for NAS
+# This playbook creates ZFS datasets "general" and "media" under the "tank" pool and ensures they are mounted at the correct locations.
+# Idempotency and safety checks are included to avoid redundant operations.
+
+- name: Create ZFS Datasets for NAS
+  hosts: nas
+  become: true
+  tasks:
+    # Step 1: Check if the "tank" pool exists
+    - name: Check if ZFS pool "tank" exists
+      command: zpool list tank
+      register: zpool_check  # Registers the result of the zpool list command.
+      failed_when: zpool_check.rc != 0  # Fail the task if the pool does not exist.
+      changed_when: false  # This task does not change the system.
+
+      # Description:
+      # This task ensures the playbook only proceeds if the "tank" pool exists.
+      # If the pool is missing, further tasks are skipped to prevent errors.
+
+    # Step 2: Create the "general" dataset
+    - name: Check if "general" dataset exists
+      command: zfs list tank/general
+      register: general_dataset_check
+      ignore_errors: true  # Allow task to continue if the dataset does not exist.
+
+    - name: Create ZFS dataset for /srv/fileserver/general
+      command: zfs create tank/general
+      when: general_dataset_check.rc != 0  # Only run if the dataset does not already exist.
+      args:
+        creates: /srv/fileserver/general  # Ensures idempotency by skipping if the mountpoint exists.
+
+      # Description:
+      # `zfs create tank/general` creates the "general" dataset under the "tank" pool.
+      # The `creates` argument ensures idempotency by checking if the mountpoint exists.
+      # The `when` clause prevents the command from running if the dataset already exists.
+
+    # Step 3: Create the "media" dataset
+    - name: Check if "media" dataset exists
+      command: zfs list tank/media
+      register: media_dataset_check
+      ignore_errors: true  # Allow task to continue if the dataset does not exist.
+
+    - name: Create ZFS dataset for /srv/fileserver/media
+      command: zfs create tank/media
+      when: media_dataset_check.rc != 0  # Only run if the dataset does not already exist.
+      args:
+        creates: /srv/fileserver/media  # Ensures idempotency by skipping if the mountpoint exists.
+
+      # Description:
+      # `zfs create tank/media` creates the "media" dataset under the "tank" pool.
+      # The `creates` argument ensures idempotency by checking if the mountpoint exists.
+      # The `when` clause prevents the command from running if the dataset already exists.
+
+    # Optional: Verify all datasets after creation
+    - name: Verify datasets
+      shell: |
+        zfs list tank/general
+        zfs list tank/media
+      changed_when: false  # This task does not make changes, only validates.
+      ignore_errors: false  # Fail the playbook if verification fails.
+
+      # Description:
+      # This task ensures the "general" and "media" datasets were successfully created.
+      # If the datasets are missing, this step will fail, indicating an issue with earlier tasks.
+
