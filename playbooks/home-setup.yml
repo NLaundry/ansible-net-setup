@@ -1,0 +1,87 @@
+---
+- name: home setup
+  hosts: localhost
+  # become: true
+  # become_user: "{{ ansible_env.USER }}"
+  tasks:
+    # - name: Print all available facts
+    #   ansible.builtin.debug:
+    #     var: ansible_facts
+
+    - name: Install Rust
+      shell: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+        source ~/.cargo/env
+      args:
+        executable: /bin/bash
+      environment:
+        HOME: "{{ ansible_env.HOME }}"
+
+    - name: Install Rust CLI tools
+      shell: |
+        source ~/.cargo/env
+        cargo install ripgrep fd-find bat exa starship zoxide
+      args:
+        executable: /bin/bash
+      environment:
+        HOME: "{{ ansible_env.HOME }}"
+
+
+    - name: Install Neovim
+      shell: |
+        curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim.appimage
+        chmod u+x nvim.appimage
+        mv nvim.appimage /usr/local/bin/nvim
+      args:
+        creates: /usr/local/bin/nvim
+
+    - name: Clone Neovim configuration
+      git:
+        repo: "https://github.com/NLaundry/nvim-config.git"
+        dest: "{{ ansible_env.HOME }}/.config/nvim"
+        update: yes
+
+    - name: Create .zshrc.d directory for modular configuration
+      file:
+        path: "{{ ansible_env.HOME }}/.zshrc.d"
+        state: directory
+        mode: '0755'
+
+    - name: Add .zshrc.d loader to .zshrc
+      lineinfile:
+        path: "{{ ansible_env.HOME }}/.zshrc"
+        line: |
+          # Source modular configurations
+          for file in ~/.zshrc.d/*.sh; do
+            source "$file"
+          done
+        insertafter: EOF
+        create: yes
+
+    - name: Add modular Zsh configurations
+      copy:
+        dest: "{{ ansible_env.HOME }}/.zshrc.d/{{ item.name }}"
+        content: "{{ item.content }}"
+        mode: '0644'
+      loop:
+        - name: aliases.sh
+          content: |
+            alias ll='ls -alF'
+            alias la='ls -A'
+            alias l='ls -CF'
+
+        - name: prompt.sh
+          content: |
+            eval "$(starship init zsh)"
+            eval "$(zoxide init zsh)"
+
+        - name: env.sh
+          content: |
+            export EDITOR=nvim
+            export PATH="$HOME/.cargo/bin:$PATH"
+
+    - name: Ensure Zsh is the default shell
+      become: true
+      shell: chsh -s /usr/bin/zsh "{{ ansible_facts['user_id'] }}"
+      when: ansible_facts['user_shell'] != "/usr/bin/zsh"
+

@@ -1,0 +1,41 @@
+- name: Install GitHub CLI
+  become: yes
+  block:
+    - name: Ensure wget is installed
+      package:
+        name: wget
+        state: present
+
+    - name: Create keyring directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: '0755'
+
+    - name: Download and add GitHub CLI archive keyring
+      command: >
+        wget -qO- https://cli.github.com/packages/githubcli-archive-keyring.gpg
+        | tee /etc/apt/keyrings/githubcli-archive-keyring.gpg
+      args:
+        creates: /etc/apt/keyrings/githubcli-archive-keyring.gpg
+      notify: chmod_keyring
+
+    - name: Add GitHub CLI repository
+      lineinfile:
+        path: /etc/apt/sources.list.d/github-cli.list
+        line: "deb [arch={{ ansible_architecture }} signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main"
+        create: yes
+
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install GitHub CLI
+      apt:
+        name: gh
+        state: latest
+
+  handlers:
+    - name: chmod_keyring
+      command: chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
+

@@ -1,0 +1,32 @@
+---
+- name: Setup Baseline Configuration
+  hosts: localhost
+  become: true
+  become_user: "{{ ansible_env.USER }}"
+  tasks:
+    - name: Install dependencies
+      apt:
+        name:
+          - make
+          - cmake
+          - gcc
+          - g++
+          - git
+          - curl
+          - build-essential
+          - unzip
+          - zsh
+        state: present
+
+    - name: Install system utilities
+      apt:
+        name:
+          - btop
+          - tmux
+          - fzf
+          - tldr
+          - ssh
+          - jq
+          - yq
+        state: present
+
